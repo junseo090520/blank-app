@@ -32,30 +32,26 @@ import plotly.express as px
 # 기본 설정
 # -----------------------------
 st.set_page_config(page_title="기후위기 & 청소년 대응 대시보드", layout="wide")
-df = pd.read_csv("heatwave_1991_2025.csv")
 
-# Pretendard 적용 시도 (없으면 자동 생략)
-def inject_font_css():
-    font_path = Path("/fonts/Pretendard-Bold.ttf")
-    if font_path.exists():
-        st.markdown(
-            f"""
-            <style>
-            @font-face {{
-                font-family: 'Pretendard';
-                src: url('file://{font_path.as_posix()}') format('truetype');
-                font-weight: 700;
-                font-style: normal;
-            }}
-            html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stSlider, .stText, .stMetric, .stDataFrame {{
-                font-family: 'Pretendard', 'Noto Sans KR', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif !important;
-            }}
-            </style>
-            """,
-            unsafe_allow_html=True,
-        )
-
-inject_font_css()
+# 폰트 설정
+font_path = Path("/fonts/Pretendard-Bold.ttf")
+if font_path.exists():
+    st.markdown(
+        f"""
+        <style>
+        @font-face {{
+            font-family: 'Pretendard';
+            src: url('file://{font_path.as_posix()}') format('truetype');
+            font-weight: 700;
+            font-style: normal;
+        }}
+        html, body, [class*="css"], .stMarkdown, .stButton, .stSelectbox, .stSlider, .stText, .stMetric, .stDataFrame {{
+            font-family: 'Pretendard', 'Noto Sans KR', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif !important;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 PLOTLY_FONT = "Pretendard, Noto Sans KR, Arial, sans-serif"
 
@@ -202,7 +198,7 @@ def monthly_summary(df):
 
 def add_risk_annotation():
     st.markdown("""
-        > 참고: **연구에 따르면, 하루 평균기온이 1°C 높아질 때마다 청소년(12~24세) 자살 충동/행동으로 인한 응급실 방문이 약 1.3% 증가**하는 경향이 관찰되었습니다.  
+        > 참고: **연구에 따르면, 하루 평균기온이 1°C 높아질 때마다 청소년(12~24세) 자살 충동/행동으로 인한 응급실 방문이 약 1.3% 증가**하는 경향이 관찰되었습니다.  
         > (호주 뉴사우스웨일스州, 2012–2019 시계열 분석. 인과 단정 불가, 참고 지표로만 활용)
         """)
     with st.expander("연구 출처(주석) 보기", expanded=False):
@@ -228,16 +224,19 @@ def load_user_table():
 2023,0,0,0,0,0,2,6,11,0,0,0,0,19,5
 2024,0,0,0,0,0,4,2,21,6,0,0,0,33,2
 2025,0,0,0,0,0,3,15,9,1,,,,28,3
-평균,0.0,0.0,0.0,0.0,0.1,1.2,7.4,9.6,0.6,0.0,0.0,0.0,,  
+평균,0.0,0.0,0.0,0.0,0.1,1.2,7.4,9.6,0.6,0.0,0.0,0.0,, 
 """
     df = pd.read_csv(io.StringIO(raw))
     df = df[df["연도"].apply(lambda x: str(x).isdigit())].copy()
     df["연도"] = df["연도"].astype(int)
     month_cols = ["1월","2월","3월","4월","5월","6월","7월","8월","9월","10월","11월","12월"]
-    keep_cols = ["연도","연합계","순위"]
+    keep_cols = ["연합계","순위"]
     for c in month_cols:
         if c not in df.columns: df[c] = np.nan
-    m = df.melt(id_vars=keep_cols + ["연도"], value_vars=month_cols, var_name="월", value_name="폭염일수")
+    
+    # ⚠️ 수정된 melt 함수 호출
+    m = pd.melt(df, id_vars=["연도"] + keep_cols, value_vars=month_cols, var_name="월", value_name="폭염일수")
+    
     m["월_int"] = m["월"].str.replace("월", "", regex=False).astype(int)
     m["date"] = pd.to_datetime(dict(year=m["연도"], month=m["월_int"], day=1)).dt.date
     m["value"] = pd.to_numeric(m["폭염일수"], errors="coerce")
@@ -277,7 +276,10 @@ def get_mental_health_indicators():
     kyrbs_data = pd.DataFrame({"연도": [2021, 2022, 2023, 2024, 2025], "우울감 경험률(%)": [25.0, 26.5, 27.2, 28.5, 29.1], "자살 생각률(%)": [10.5, 11.0, 11.3, 11.5, 11.8]})
     kyrbs_data["date"] = pd.to_datetime(dict(year=kyrbs_data["연도"], month=1, day=1)).dt.date
     kyrbs_data = clamp_to_today(kyrbs_data, "date")
-    melted_kyrbs = kyrbs_data.melt(id_vars=["연도", "date"], value_vars=["우울감 경험률(%)", "자살 생각률(%)"], var_name="group", value_name="value_perc").rename(columns={"value": "value_perc"})
+    
+    # ⚠️ 수정된 melt 함수 호출
+    melted_kyrbs = pd.melt(kyrbs_data, id_vars=["연도", "date"], value_vars=["우울감 경험률(%)", "자살 생각률(%)"], var_name="group", value_name="value_perc")
+    
     return research_indicators, melted_kyrbs
 
 def plot_kyrbs_trend(df):
@@ -292,7 +294,7 @@ def plot_kyrbs_trend(df):
 @st.cache_data(show_spinner=False)
 def get_academic_indicators():
     academic_indicators = pd.DataFrame([
-        {"지표": "기온 1°C↑ vs 학업 성취도 하락", "단위": "%", "값": 1, "출처": "연구(미국, 에어컨X 교실)", "설명": "외부 온도가 $1^\circ \text{C}$ 상승 시"},
+        {"지표": "기온 1°C↑ vs 학업 성취도 하락", "단위": "%", "값": 1, "출처": "연구(미국, 에어컨X 교실)", "설명": "외부 온도가 $1^\circ \\text{C}$ 상승 시"},
     ])
     start_year = 2018
     end_year = TODAY_DATE.year
@@ -307,7 +309,10 @@ def get_academic_indicators():
     academic_data["학업 성취도 변화율(%p, 가상)"] = (base_change + change_noise).round(2)
     academic_data["date"] = pd.to_datetime(dict(year=academic_data["연도"], month=1, day=1)).dt.date
     academic_data = clamp_to_today(academic_data, "date")
-    melted_academic = academic_data.melt(id_vars=["연도", "date"], value_vars=["고온 학습 손실 지수(가상)", "학업 성취도 변화율(%p, 가상)"], var_name="group", value_name="value")
+    
+    # ⚠️ 수정된 melt 함수 호출
+    melted_academic = pd.melt(academic_data, id_vars=["연도", "date"], value_vars=["고온 학습 손실 지수(가상)", "학업 성취도 변화율(%p, 가상)"], var_name="group", value_name="value")
+    
     return academic_indicators, melted_academic
 
 def plot_academic_trend(df):
@@ -521,6 +526,7 @@ with tab1:
     download_button_for_df(std[["date","value","group"]].sort_values(["date","group"]), "nasa_power_standardized.csv", "CSV 다운로드 (공개 데이터)")
     st.caption("주석: NASA POWER API 문서 URL은 코드 주석에 기재되어 있습니다. (앱 상단 주석 참조)")
 
+# 탭2: 사용자 입력 데이터 대시보드
 with tab2:
     st.subheader("사용자 입력 데이터 대시보드 — 폭염일수(연도·월)")
     st.caption("프롬프트로 제공된 표만 사용합니다. 업로드나 추가 입력을 요구하지 않습니다.")
@@ -535,15 +541,19 @@ with tab2:
             y_start, y_end = st.slider("표시 연도 범위", min_value=y_min, max_value=y_max, value=(y_min, y_max), key="tab2_yr_rng")
             smooth_months = st.select_slider("월 이동평균(연도별 적용)", options=[1,3], value=1, key="tab2_smooth")
 
-        view_df = user_long[(pd.to_datetime(user_long["date"]).dt.year >= y_start) & (pd.to_datetime(user_long["date"]).dt.year <= y_end)]
+        view_df = user_long[(pd.to_datetime(user_long["date"]).dt.year >= y_start) & 
+                            (pd.to_datetime(user_long["date"]).dt.year <= y_end)]
     else:
         view_df = user_long
         smooth_months = 1 
 
     if smooth_months > 1 and not view_df.empty:
         view_df = view_df.sort_values(["group","date"]).copy()
-        view_df["value"] = view_df.groupby("group")["value"].transform(lambda s: s.rolling(smooth_months, min_periods=1).mean())
+        view_df["value"] = view_df.groupby("group")["value"].transform(
+            lambda s: s.rolling(smooth_months, min_periods=1).mean()
+        )
 
+    # 시각화 함수 호출
     plot_user_monthly(view_df)
     st.markdown("---")
     plot_user_rank(user_year)
@@ -668,5 +678,5 @@ with tab5: # ★새로 추가된 '기후위기, 우리의 미래' 탭
 st.markdown("---")
 st.markdown("<br>", unsafe_allow_html=True)
 display_report()
-st.markdown("---")
+st.markdown("---") 
 st.caption("© Streamlit 대시보드 예시. 데이터는 공개 API/제공 표/연구 인용 기준으로 구성되며, 오늘(로컬 자정) 이후 데이터는 제거됩니다.")
