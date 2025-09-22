@@ -679,4 +679,5 @@ st.markdown("---")
 st.markdown("<br>", unsafe_allow_html=True)
 display_report()
 st.markdown("---") 
+
 st.caption("© Streamlit 대시보드 예시. 데이터는 공개 API/제공 표/연구 인용 기준으로 구성되며, 오늘(로컬 자정) 이후 데이터는 제거됩니다.")
